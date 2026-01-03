@@ -36,7 +36,7 @@ class MQTTClient:
         self._retry_count = 0
         self._stopping = False
         self._loop_running = False
-        self.message_handlers: dict[str, Callable] = {}
+        self.message_handlers: list[tuple[str, Callable]] = []
 
     def on_connect(self, client, userdata, flags, rc):
         """Handle MQTT connection callback.
@@ -64,12 +64,12 @@ class MQTTClient:
             userdata: User data.
             msg: MQTT message object.
         """
+        topic = msg.topic
+        self.logger.info(f"Received message on topic: {topic}")
+
         try:
             payload = msg.payload.decode("utf-8")
             data = json.loads(payload)
-
-            topic = msg.topic
-            self.logger.debug(f"Received message on topic: {topic}")
 
             try:
                 self.logger.debug(f"Payload: {str(data)}")
@@ -80,21 +80,25 @@ class MQTTClient:
                 self.logger.debug(f"Ignoring old retained message on topic: {topic}")
                 return
 
-            handler = self.message_handlers.get(topic)
-            if handler:
-                try:
-                    handler(data)
-                except Exception as e:
-                    self.logger.error(f"Handler error for topic {topic}: {e}", exc_info=True)
-            else:
-                self.logger.debug(f"No handler registered for topic: {topic}")
+            matched = False
+            for pattern, handler in self.message_handlers:
+                if self._match_topic(topic, pattern):
+                    matched = True
+                    try:
+                        self.logger.info(f"Routing topic '{topic}' to handler for pattern '{pattern}'")
+                        handler(data)
+                    except Exception as e:
+                        self.logger.error(f"Handler error for pattern {pattern} on topic {topic}: {e}", exc_info=True)
+
+            if not matched:
+                self.logger.debug(f"No handler matched for topic: {topic}")
 
         except json.JSONDecodeError as e:
-            self.logger.error(f"JSON decode error on topic {msg.topic}: {e}")
+            self.logger.error(f"JSON decode error on topic {topic}: {e}")
         except UnicodeDecodeError as e:
-            self.logger.error(f"Unicode decode error on topic {msg.topic}: {e}")
+            self.logger.error(f"Unicode decode error on topic {topic}: {e}")
         except Exception as e:
-            self.logger.error(f"Unexpected error processing message on topic {msg.topic}: {e}", exc_info=True)
+            self.logger.error(f"Unexpected error processing message on topic {topic}: {e}", exc_info=True)
 
     async def connect(self):
         """Connect to MQTT broker.
@@ -178,15 +182,68 @@ class MQTTClient:
 
             await asyncio.sleep(5.0)
 
+    def _match_topic(self, topic: str, pattern: str) -> bool:
+        """Check if a topic matches an MQTT pattern.
+
+        Args:
+            topic: Actual MQTT topic received.
+            pattern: MQTT pattern with wildcards (+ and #).
+
+        Returns:
+            True if topic matches pattern, False otherwise.
+        """
+        topic_parts = topic.split('/')
+        pattern_parts = pattern.split('/')
+
+        if not pattern_parts:
+            return False
+
+        if pattern_parts[-1] == '#':
+            if len(topic_parts) < len(pattern_parts) - 1:
+                return False
+            for i in range(len(pattern_parts) - 1):
+                if pattern_parts[i] != '+' and pattern_parts[i] != topic_parts[i]:
+                    return False
+            return True
+
+        if len(topic_parts) != len(pattern_parts):
+            return False
+
+        for topic_part, pattern_part in zip(topic_parts, pattern_parts):
+            if pattern_part == '+':
+                continue
+            if pattern_part != topic_part:
+                return False
+
+        return True
+
     def register_handler(self, topic_pattern: str, handler_func: Callable):
         """Register a message handler for a topic pattern.
 
         Args:
-            topic_pattern: MQTT topic pattern to match.
+            topic_pattern: MQTT topic pattern to match (supports + and # wildcards).
             handler_func: Callback function to handle messages.
         """
-        self.message_handlers[topic_pattern] = handler_func
+        self.message_handlers.append((topic_pattern, handler_func))
         self.logger.info(f"Registered handler for topic pattern: {topic_pattern}")
+
+    def unregister_handler(self, topic_pattern: str, handler_func: Callable):
+        """Unregister a message handler for a topic pattern.
+
+        Args:
+            topic_pattern: MQTT topic pattern.
+            handler_func: Callback function to remove.
+        """
+        self.message_handlers = [(p, h) for p, h in self.message_handlers if not (p == topic_pattern and h == handler_func)]
+        self.logger.info(f"Unregistered handler for topic pattern: {topic_pattern}")
+
+    def list_handlers(self) -> list[str]:
+        """List all registered topic patterns.
+
+        Returns:
+            List of registered topic patterns.
+        """
+        return [pattern for pattern, _ in self.message_handlers]
 
     def stop(self):
         """Stop the MQTT client and background tasks."""
