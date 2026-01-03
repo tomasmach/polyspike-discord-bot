@@ -265,7 +265,6 @@ class MQTTClient:
                     if not self._loop_running:
                         self.client.loop_start()
                         self._loop_running = True
-                    self._retry_count = 0
                     self.logger.info("Reconnected to MQTT broker")
                 except Exception as e:
                     self._retry_count += 1
