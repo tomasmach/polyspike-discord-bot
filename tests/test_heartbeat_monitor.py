@@ -179,7 +179,7 @@ class TestHeartbeatMonitor(unittest.IsolatedAsyncioTestCase):
     async def test_heartbeat_alert_is_sent(self):
         """Test that heartbeat alert is sent correctly."""
         monitor = HeartbeatMonitor(self.mock_bot)
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=True)
 
         # Update heartbeat timestamp so alert has valid data
         monitor.update(self.heartbeat_payload)
@@ -188,9 +188,9 @@ class TestHeartbeatMonitor(unittest.IsolatedAsyncioTestCase):
         await monitor._send_heartbeat_alert(100)
 
         # Verify alert was sent
-        self.mock_channel.send.assert_called_once()
-        call_kwargs = self.mock_channel.send.call_args[1]
-        embed = call_kwargs["embed"]
+        self.mock_bot.safe_send_to_channel.assert_awaited_once()
+        call_args = self.mock_bot.safe_send_to_channel.call_args[0]
+        embed = call_args[0]
         self.assertIsInstance(embed, discord.Embed)
         self.assertIn("Heartbeat Alert", embed.title)
 
