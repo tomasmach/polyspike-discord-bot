@@ -20,7 +20,7 @@ from src.config import Config, load_config
 from src.handlers import balance_handler, status_handler, trading_handler
 from src.mqtt_client import MQTTClient
 from src.utils.embeds import create_mqtt_connection_alert_embed
-from src.utils.logger import get_logger, setup_logging
+from src.utils.logger import get_logger, setup_logger
 
 
 def register_mqtt_handlers(mqtt_client: MQTTClient, bot) -> None:
@@ -154,7 +154,7 @@ async def main() -> None:
 
         # 2. Setup logging
         print("Setting up logging...")
-        setup_logging(config.log_level)
+        setup_logger(config.log_level)
         logger = get_logger()
         logger.info("=" * 60)
         logger.info("PolySpike Discord Bot Starting")
