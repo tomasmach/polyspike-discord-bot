@@ -62,7 +62,7 @@ def create_position_opened_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="Position Opened",
+        title="🟢 Position Opened",
         description=market_name,
         color=0x00FF00,  # Green
         timestamp=datetime.fromtimestamp(timestamp)
@@ -127,7 +127,7 @@ def create_trade_completed_embed(payload: Dict[str, Any]) -> discord.Embed:
     color = 0x00FF00 if pnl >= 0 else 0xFF0000  # Green if profit, red if loss
 
     embed = discord.Embed(
-        title="Trade Completed",
+        title="💰 Trade Completed",
         description=market_name,
         color=color,
         timestamp=datetime.fromtimestamp(timestamp)
@@ -195,7 +195,7 @@ def create_balance_update_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="Balance Update",
+        title="💵 Balance Update",
         description=f"Reason: {update_reason.replace('_', ' ').title()}",
         color=0x3498DB,  # Blue
         timestamp=datetime.fromtimestamp(timestamp)
@@ -260,7 +260,7 @@ def create_bot_started_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="Bot Started",
+        title="🚀 Bot Started",
         description=f"Session: `{session_id}`",
         color=0x00FF00,  # Green
         timestamp=datetime.fromtimestamp(timestamp)
@@ -313,7 +313,7 @@ def create_bot_stopped_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="Bot Stopped",
+        title="🛑 Bot Stopped",
         description=f"Session: `{session_id}`",
         color=0xFF0000,  # Red
         timestamp=datetime.fromtimestamp(timestamp)
@@ -397,7 +397,7 @@ def create_heartbeat_alert_embed(data: Dict[str, Any]) -> discord.Embed:
     missing_seconds = data.get("missing_seconds", 0)
 
     embed = discord.Embed(
-        title="Heartbeat Alert",
+        title="⚠️ Heartbeat Alert",
         description="No heartbeat received from trading bot",
         color=0xFFAA00,  # Yellow
         timestamp=datetime.now()

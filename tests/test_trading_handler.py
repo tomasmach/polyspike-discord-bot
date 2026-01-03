@@ -30,6 +30,8 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
         # Create mock text channel
         self.mock_channel = AsyncMock(spec=discord.TextChannel)
         self.mock_channel.send = AsyncMock()
+        self.mock_bot.notification_channel = self.mock_channel
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=True)
 
         # Sample payloads
         self.position_opened_payload = {
@@ -58,69 +60,55 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_position_opened_success(self):
         """Test successful position opened notification."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Call handler
         handle_position_opened(self.position_opened_payload, self.mock_bot)
 
         # Wait for async task to complete
         await asyncio.sleep(0.1)
 
-        # Verify channel was retrieved
-        self.mock_bot.get_channel.assert_called_once_with(123456789)
-
         # Verify message was sent
-        self.mock_channel.send.assert_called_once()
-        call_kwargs = self.mock_channel.send.call_args[1]
-        embed = call_kwargs["embed"]
+        self.mock_bot.safe_send_to_channel.assert_called_once()
+        call_args = self.mock_bot.safe_send_to_channel.call_args[0]
+        embed = call_args[0]
         self.assertIsInstance(embed, discord.Embed)
         self.assertEqual(embed.title, "🟢 Position Opened")
 
     async def test_handle_trade_completed_success(self):
         """Test successful trade completed notification."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Call handler
         handle_trade_completed(self.trade_completed_payload, self.mock_bot)
 
         # Wait for async task to complete
         await asyncio.sleep(0.1)
 
-        # Verify channel was retrieved
-        self.mock_bot.get_channel.assert_called_once_with(123456789)
-
         # Verify message was sent
-        self.mock_channel.send.assert_called_once()
-        call_kwargs = self.mock_channel.send.call_args[1]
-        embed = call_kwargs["embed"]
+        self.mock_bot.safe_send_to_channel.assert_called_once()
+        call_args = self.mock_bot.safe_send_to_channel.call_args[0]
+        embed = call_args[0]
         self.assertIsInstance(embed, discord.Embed)
         self.assertEqual(embed.title, "💰 Trade Completed")
 
     async def test_handle_trade_completed_duplicate_detection(self):
         """Test that duplicate trade_id is ignored."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Send first trade
         handle_trade_completed(self.trade_completed_payload, self.mock_bot)
         await asyncio.sleep(0.1)
 
         # Verify first message was sent
-        self.assertEqual(self.mock_channel.send.call_count, 1)
+        self.assertEqual(self.mock_bot.safe_send_to_channel.call_count, 1)
 
         # Reset mock
-        self.mock_channel.send.reset_mock()
+        self.mock_bot.safe_send_to_channel.reset_mock()
 
         # Send duplicate with same trade_id
         handle_trade_completed(self.trade_completed_payload, self.mock_bot)
         await asyncio.sleep(0.1)
 
         # Verify duplicate was NOT sent
-        self.mock_channel.send.assert_not_called()
+        self.mock_bot.safe_send_to_channel.assert_not_called()
 
     async def test_handle_trade_completed_different_trade_ids(self):
         """Test that different trade_ids are both sent."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Send first trade
         handle_trade_completed(self.trade_completed_payload, self.mock_bot)
         await asyncio.sleep(0.1)
@@ -133,12 +121,10 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
 
         # Verify both messages were sent
-        self.assertEqual(self.mock_channel.send.call_count, 2)
+        self.assertEqual(self.mock_bot.safe_send_to_channel.call_count, 2)
 
     async def test_handle_trade_completed_without_trade_id(self):
         """Test trade completed without trade_id field."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Payload without trade_id
         payload = self.trade_completed_payload.copy()
         del payload["trade_id"]
@@ -148,12 +134,10 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
 
         # Verify message was sent
-        self.mock_channel.send.assert_called_once()
+        self.mock_bot.safe_send_to_channel.assert_called_once()
 
     async def test_seen_trades_cache_pruning(self):
         """Test that seen trades cache is pruned when limit exceeded."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Mock the MAX limit to a small value for testing
         with patch("src.handlers.trading_handler._MAX_SEEN_TRADES", 5):
             # Add 10 different trades
@@ -169,7 +153,7 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_position_opened_channel_not_found(self):
         """Test position opened handler when channel is not found."""
-        self.mock_bot.get_channel = Mock(return_value=None)
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=False)
 
         with patch("src.handlers.trading_handler.get_logger") as mock_logger:
             logger_instance = Mock()
@@ -181,12 +165,13 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
             # Verify error was logged
             logger_instance.error.assert_called()
             error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("not found", error_msg)
+            self.assertIn("Failed to send position opened notification", error_msg)
 
     async def test_handle_trade_completed_wrong_channel_type(self):
         """Test trade completed handler when channel is not TextChannel."""
-        mock_voice_channel = Mock(spec=discord.VoiceChannel)
-        self.mock_bot.get_channel = Mock(return_value=mock_voice_channel)
+        # In new architecture, channel type validation happens at startup in on_ready
+        # This test verifies the behavior when safe_send_to_channel fails for any reason
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=False)
 
         with patch("src.handlers.trading_handler.get_logger") as mock_logger:
             logger_instance = Mock()
@@ -198,14 +183,11 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
             # Verify error was logged
             logger_instance.error.assert_called()
             error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("not a text channel", error_msg)
+            self.assertIn("Failed to send trade completed notification", error_msg)
 
     async def test_handle_position_opened_permission_denied(self):
         """Test position opened handler when permission is denied."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-        self.mock_channel.send.side_effect = discord.errors.Forbidden(
-            Mock(), "Forbidden"
-        )
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=False)
 
         with patch("src.handlers.trading_handler.get_logger") as mock_logger:
             logger_instance = Mock()
@@ -217,14 +199,11 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
             # Verify permission error was logged
             logger_instance.error.assert_called()
             error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("Permission denied", error_msg)
+            self.assertIn("Failed to send position opened notification", error_msg)
 
     async def test_handle_trade_completed_http_exception(self):
         """Test trade completed handler when HTTP exception occurs."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-        self.mock_channel.send.side_effect = discord.errors.HTTPException(
-            Mock(), "HTTP error"
-        )
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=False)
 
         with patch("src.handlers.trading_handler.get_logger") as mock_logger:
             logger_instance = Mock()
@@ -240,8 +219,6 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_position_opened_with_missing_fields(self):
         """Test position opened handler with missing important fields."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Payload with missing fields
         minimal_payload = {"timestamp": 1735833715.0}
 
@@ -258,12 +235,10 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
             self.assertIn("missing fields", warning_msg)
 
             # Verify message was still sent (with defaults)
-            self.mock_channel.send.assert_called_once()
+            self.mock_bot.safe_send_to_channel.assert_called_once()
 
     async def test_handle_trade_completed_with_missing_fields(self):
         """Test trade completed handler with missing important fields."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Payload with missing fields
         minimal_payload = {
             "trade_id": "test-trade-123",
@@ -283,17 +258,15 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
             self.assertIn("missing fields", warning_msg)
 
             # Verify message was still sent (with defaults)
-            self.mock_channel.send.assert_called_once()
+            self.mock_bot.safe_send_to_channel.assert_called_once()
 
     async def test_handlers_are_non_blocking(self):
         """Test that handlers return immediately (non-blocking)."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Create slow mock
         async def slow_send(*args, **kwargs):
             await asyncio.sleep(0.5)
 
-        self.mock_channel.send = slow_send
+        self.mock_bot.safe_send_to_channel = slow_send
 
         # Call handler and measure time
         import time
@@ -307,8 +280,7 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_position_opened_unexpected_exception(self):
         """Test position opened handler with unexpected exception."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-        self.mock_channel.send.side_effect = RuntimeError("Unexpected error")
+        self.mock_bot.safe_send_to_channel = AsyncMock(side_effect=Exception("test error"))
 
         with patch("src.handlers.trading_handler.get_logger") as mock_logger:
             logger_instance = Mock()
@@ -320,7 +292,7 @@ class TestTradingHandlers(unittest.IsolatedAsyncioTestCase):
             # Verify unexpected error was logged
             logger_instance.error.assert_called()
             error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("Unexpected error", error_msg)
+            self.assertIn("test error", error_msg)
 
 
 class TestTradingHandlerLogging(unittest.IsolatedAsyncioTestCase):

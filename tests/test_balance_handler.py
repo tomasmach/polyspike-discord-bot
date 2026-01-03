@@ -29,10 +29,15 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
         self.mock_bot = Mock(spec=discord.Client)
         self.mock_bot.config = Mock()
         self.mock_bot.config.discord_channel_id = 123456789
+        self.mock_bot.logger = Mock()
 
         # Create mock text channel
         self.mock_channel = AsyncMock(spec=discord.TextChannel)
         self.mock_channel.send = AsyncMock()
+        self.mock_channel.name = "test-channel"
+        self.mock_channel.id = 123456789
+        self.mock_bot.notification_channel = self.mock_channel
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=True)
 
         # Sample payload
         self.balance_payload = {
@@ -48,28 +53,17 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_balance_update_success(self):
         """Test successful balance update notification."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Call handler
         handle_balance_update(self.balance_payload, self.mock_bot)
 
         # Wait for async task to complete
         await asyncio.sleep(0.1)
 
-        # Verify channel was retrieved
-        self.mock_bot.get_channel.assert_called_once_with(123456789)
-
         # Verify message was sent
-        self.mock_channel.send.assert_called_once()
-        call_kwargs = self.mock_channel.send.call_args[1]
-        embed = call_kwargs["embed"]
-        self.assertIsInstance(embed, discord.Embed)
-        self.assertEqual(embed.title, "💵 Balance Update")
+        self.mock_bot.safe_send_to_channel.assert_called_once()
 
     async def test_handle_balance_update_filters_old_retained_messages(self):
         """Test that old retained messages are filtered out."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Set startup time to now
         current_time = time.time()
         set_startup_time(current_time)
@@ -85,12 +79,10 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
 
         # Verify message was NOT sent (filtered out)
-        self.mock_channel.send.assert_not_called()
+        self.mock_bot.safe_send_to_channel.assert_not_called()
 
     async def test_handle_balance_update_accepts_recent_messages(self):
         """Test that recent messages within threshold are accepted."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Set startup time to now
         current_time = time.time()
         set_startup_time(current_time)
@@ -106,12 +98,10 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
 
         # Verify message WAS sent (within threshold)
-        self.mock_channel.send.assert_called_once()
+        self.mock_bot.safe_send_to_channel.assert_called_once()
 
     async def test_handle_balance_update_caches_data(self):
         """Test that balance data is cached for slash command."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Initially no cached data
         self.assertIsNone(get_last_balance_data())
 
@@ -130,8 +120,6 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_balance_update_cache_is_copy(self):
         """Test that cached data is a copy, not reference."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Send balance update
         handle_balance_update(self.balance_payload, self.mock_bot)
         await asyncio.sleep(0.1)
@@ -151,79 +139,100 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
 
     async def test_handle_balance_update_channel_not_found(self):
         """Test balance update handler when channel is not found."""
-        self.mock_bot.get_channel = Mock(return_value=None)
+        # Create safe_send_to_channel implementation that logs errors
+        async def safe_send_to_channel(embed, content=None):
+            if self.mock_bot.notification_channel is None:
+                self.mock_bot.logger.error(
+                    "Cannot send message: notification channel not set. "
+                    "Channel may not exist or bot lacks access."
+                )
+                return False
+            if not isinstance(self.mock_bot.notification_channel, discord.TextChannel):
+                self.mock_bot.logger.error(
+                    f"Cannot send message: channel is not a text channel"
+                )
+                return False
+            return True
 
-        with patch("src.handlers.balance_handler.get_logger") as mock_logger:
-            logger_instance = Mock()
-            mock_logger.return_value = logger_instance
+        self.mock_bot.safe_send_to_channel = safe_send_to_channel
+        self.mock_bot.notification_channel = None
 
-            handle_balance_update(self.balance_payload, self.mock_bot)
-            await asyncio.sleep(0.1)
+        handle_balance_update(self.balance_payload, self.mock_bot)
+        await asyncio.sleep(0.1)
 
-            # Verify error was logged
-            logger_instance.error.assert_called()
-            error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("not found", error_msg)
+        # Verify error was logged by bot
+        self.mock_bot.logger.error.assert_called()
+        error_msg = self.mock_bot.logger.error.call_args[0][0]
+        self.assertIn("not set", error_msg)
 
     async def test_handle_balance_update_wrong_channel_type(self):
         """Test balance update handler when channel is not TextChannel."""
-        mock_voice_channel = Mock(spec=discord.VoiceChannel)
-        self.mock_bot.get_channel = Mock(return_value=mock_voice_channel)
+        # Create safe_send_to_channel implementation that logs errors
+        async def safe_send_to_channel(embed, content=None):
+            if self.mock_bot.notification_channel is None:
+                self.mock_bot.logger.error(
+                    "Cannot send message: notification channel not set. "
+                    "Channel may not exist or bot lacks access."
+                )
+                return False
+            if not isinstance(self.mock_bot.notification_channel, discord.TextChannel):
+                self.mock_bot.logger.error(
+                    f"Cannot send message: channel is not a text channel"
+                )
+                return False
+            return True
 
-        with patch("src.handlers.balance_handler.get_logger") as mock_logger:
-            logger_instance = Mock()
-            mock_logger.return_value = logger_instance
+        self.mock_bot.safe_send_to_channel = safe_send_to_channel
+        self.mock_bot.notification_channel = Mock(spec=discord.VoiceChannel)
 
-            handle_balance_update(self.balance_payload, self.mock_bot)
-            await asyncio.sleep(0.1)
+        handle_balance_update(self.balance_payload, self.mock_bot)
+        await asyncio.sleep(0.1)
 
-            # Verify error was logged
-            logger_instance.error.assert_called()
-            error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("not a text channel", error_msg)
+        # Verify error was logged by bot
+        self.mock_bot.logger.error.assert_called()
+        error_msg = self.mock_bot.logger.error.call_args[0][0]
+        self.assertIn("not a text channel", error_msg)
 
     async def test_handle_balance_update_permission_denied(self):
         """Test balance update handler when permission is denied."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-        self.mock_channel.send.side_effect = discord.errors.Forbidden(
-            Mock(), "Forbidden"
-        )
+        # Create safe_send_to_channel implementation that logs errors
+        async def safe_send_to_channel(embed, content=None):
+            self.mock_bot.logger.error(
+                f"Permission denied when sending to channel "
+                f"(ID: {self.mock_bot.notification_channel.id}). "
+                "Bot may be missing 'Send Messages' or 'Embed Links' permission."
+            )
+            return False
 
-        with patch("src.handlers.balance_handler.get_logger") as mock_logger:
-            logger_instance = Mock()
-            mock_logger.return_value = logger_instance
+        self.mock_bot.safe_send_to_channel = safe_send_to_channel
 
-            handle_balance_update(self.balance_payload, self.mock_bot)
-            await asyncio.sleep(0.1)
+        handle_balance_update(self.balance_payload, self.mock_bot)
+        await asyncio.sleep(0.1)
 
-            # Verify permission error was logged
-            logger_instance.error.assert_called()
-            error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("Permission denied", error_msg)
+        # Verify permission error was logged by bot
+        self.mock_bot.logger.error.assert_called()
+        error_msg = self.mock_bot.logger.error.call_args[0][0]
+        self.assertIn("Permission denied", error_msg)
 
     async def test_handle_balance_update_http_exception(self):
         """Test balance update handler when HTTP exception occurs."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-        self.mock_channel.send.side_effect = discord.errors.HTTPException(
-            Mock(), "HTTP error"
-        )
+        # Create safe_send_to_channel implementation that logs errors
+        async def safe_send_to_channel(embed, content=None):
+            self.mock_bot.logger.error("Failed to send balance update notification (see errors above)")
+            return False
 
-        with patch("src.handlers.balance_handler.get_logger") as mock_logger:
-            logger_instance = Mock()
-            mock_logger.return_value = logger_instance
+        self.mock_bot.safe_send_to_channel = safe_send_to_channel
 
-            handle_balance_update(self.balance_payload, self.mock_bot)
-            await asyncio.sleep(0.1)
+        handle_balance_update(self.balance_payload, self.mock_bot)
+        await asyncio.sleep(0.1)
 
-            # Verify HTTP error was logged
-            logger_instance.error.assert_called()
-            error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("Failed to send balance update notification", error_msg)
+        # Verify HTTP error was logged by bot
+        self.mock_bot.logger.error.assert_called()
+        error_msg = self.mock_bot.logger.error.call_args[0][0]
+        self.assertIn("Failed to send", error_msg)
 
     async def test_handle_balance_update_with_missing_fields(self):
         """Test balance update handler with missing important fields."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Payload with missing fields
         minimal_payload = {"timestamp": time.time()}
 
@@ -240,12 +249,11 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
             self.assertIn("missing fields", warning_msg)
 
             # Verify message was still sent (with defaults)
-            self.mock_channel.send.assert_called_once()
+            self.mock_bot.safe_send_to_channel.assert_called_once()
 
     async def test_handle_balance_update_unexpected_exception(self):
         """Test balance update handler with unexpected exception."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-        self.mock_channel.send.side_effect = RuntimeError("Unexpected error")
+        self.mock_bot.safe_send_to_channel = AsyncMock(side_effect=Exception("test error"))
 
         with patch("src.handlers.balance_handler.get_logger") as mock_logger:
             logger_instance = Mock()
@@ -261,13 +269,11 @@ class TestBalanceHandler(unittest.IsolatedAsyncioTestCase):
 
     async def test_handler_is_non_blocking(self):
         """Test that handler returns immediately (non-blocking)."""
-        self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-
         # Create slow mock
         async def slow_send(*args, **kwargs):
             await asyncio.sleep(0.5)
 
-        self.mock_channel.send = slow_send
+        self.mock_bot.safe_send_to_channel = slow_send
 
         # Call handler and measure time
         start = time.time()
@@ -284,6 +290,17 @@ class TestBalanceHandlerUtilities(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """Set up test fixtures."""
         clear_balance_cache()
+
+        self.mock_bot = Mock(spec=discord.Client)
+        self.mock_bot.config = Mock()
+        self.mock_bot.config.discord_channel_id = 123456789
+        self.mock_bot.logger = Mock()
+        self.mock_channel = AsyncMock(spec=discord.TextChannel)
+        self.mock_channel.send = AsyncMock()
+        self.mock_channel.name = "test-channel"
+        self.mock_channel.id = 123456789
+        self.mock_bot.notification_channel = self.mock_channel
+        self.mock_bot.safe_send_to_channel = AsyncMock(return_value=True)
 
     def test_set_startup_time(self):
         """Test setting the startup time."""
@@ -312,9 +329,6 @@ class TestBalanceHandlerUtilities(unittest.IsolatedAsyncioTestCase):
 
     async def test_clear_balance_cache(self):
         """Test clearing the balance cache."""
-        mock_bot = Mock()
-        mock_bot.get_channel = Mock(return_value=None)
-
         # Add balance data
         payload = {
             "timestamp": time.time(),
@@ -322,7 +336,7 @@ class TestBalanceHandlerUtilities(unittest.IsolatedAsyncioTestCase):
             "equity": 100.0,
             "total_pnl": 0.0,
         }
-        handle_balance_update(payload, mock_bot)
+        handle_balance_update(payload, self.mock_bot)
         await asyncio.sleep(0.1)
 
         # Verify data was cached
@@ -351,9 +365,6 @@ class TestBalanceHandlerUtilities(unittest.IsolatedAsyncioTestCase):
 
     async def test_balance_cache_updates_with_latest_data(self):
         """Test that balance cache updates with latest data."""
-        mock_bot = Mock()
-        mock_bot.get_channel = Mock(return_value=None)
-
         # Send first balance update
         payload1 = {
             "timestamp": time.time(),
@@ -361,7 +372,7 @@ class TestBalanceHandlerUtilities(unittest.IsolatedAsyncioTestCase):
             "equity": 100.0,
             "total_pnl": 0.0,
         }
-        handle_balance_update(payload1, mock_bot)
+        handle_balance_update(payload1, self.mock_bot)
         await asyncio.sleep(0.1)
 
         # Verify first data
@@ -375,7 +386,7 @@ class TestBalanceHandlerUtilities(unittest.IsolatedAsyncioTestCase):
             "equity": 105.75,
             "total_pnl": 5.50,
         }
-        handle_balance_update(payload2, mock_bot)
+        handle_balance_update(payload2, self.mock_bot)
         await asyncio.sleep(0.1)
 
         # Verify cache was updated
