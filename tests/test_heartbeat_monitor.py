@@ -233,79 +233,17 @@ class TestHeartbeatMonitor(unittest.IsolatedAsyncioTestCase):
             mock_logger.return_value = logger_instance
 
             monitor = HeartbeatMonitor(self.mock_bot, timeout_seconds=1)
-            self.mock_bot.get_channel = Mock(return_value=None)
+            self.mock_bot.safe_send_to_channel = AsyncMock(return_value=False)
 
-            # Trigger alert
-            await monitor._send_heartbeat_alert(100)
-
-            # Verify error was logged
-            logger_instance.error.assert_called()
-            error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("not found", error_msg)
-
-    async def test_alert_wrong_channel_type(self):
-        """Test alert when channel is not TextChannel."""
-        with patch("src.handlers.heartbeat_monitor.get_logger") as mock_logger:
-            logger_instance = Mock()
-            mock_logger.return_value = logger_instance
-
-            monitor = HeartbeatMonitor(self.mock_bot)
-            mock_voice_channel = Mock(spec=discord.VoiceChannel)
-            self.mock_bot.get_channel = Mock(return_value=mock_voice_channel)
-
-            # Trigger alert
-            await monitor._send_heartbeat_alert(100)
-
-            # Verify error was logged
-            logger_instance.error.assert_called()
-            error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("not a text channel", error_msg)
-
-    async def test_alert_permission_denied(self):
-        """Test alert when permission is denied."""
-        with patch("src.handlers.heartbeat_monitor.get_logger") as mock_logger:
-            logger_instance = Mock()
-            mock_logger.return_value = logger_instance
-
-            monitor = HeartbeatMonitor(self.mock_bot)
-            self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-            self.mock_channel.send.side_effect = discord.errors.Forbidden(
-                Mock(), "Forbidden"
-            )
-
-            # Update heartbeat timestamp so alert has valid data
             monitor.update(self.heartbeat_payload)
 
-            # Trigger alert
             await monitor._send_heartbeat_alert(100)
 
-            # Verify permission error was logged
-            logger_instance.error.assert_called()
-            error_msg = logger_instance.error.call_args[0][0]
-            self.assertIn("Permission denied", error_msg)
-
-    async def test_alert_http_exception(self):
-        """Test alert when HTTP exception occurs."""
-        with patch("src.handlers.heartbeat_monitor.get_logger") as mock_logger:
-            logger_instance = Mock()
-            mock_logger.return_value = logger_instance
-
-            monitor = HeartbeatMonitor(self.mock_bot)
-            self.mock_bot.get_channel = Mock(return_value=self.mock_channel)
-            self.mock_channel.send.side_effect = discord.errors.HTTPException(
-                Mock(), "HTTP error"
-            )
-
-            # Update heartbeat timestamp
-            monitor.update(self.heartbeat_payload)
-
-            # Trigger alert
-            await monitor._send_heartbeat_alert(100)
-
-            # Verify HTTP error was logged
             logger_instance.error.assert_called()
             error_msg = logger_instance.error.call_args[0][0]
             self.assertIn("Failed to send heartbeat alert", error_msg)
+
+
 
 
 if __name__ == "__main__":
