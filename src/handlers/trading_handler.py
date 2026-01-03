@@ -6,7 +6,8 @@ This module handles trading-related events from MQTT:
 """
 
 import asyncio
-from typing import Any, Dict, Set
+from collections import OrderedDict
+from typing import Any, Dict
 
 import discord
 
@@ -17,8 +18,9 @@ from src.utils.embeds import (
 from src.utils.logger import get_logger
 
 
-# Global set to track seen trade IDs (prevents duplicates from QoS 1)
-_seen_trade_ids: Set[str] = set()
+# Global ordered dict to track seen trade IDs (prevents duplicates from QoS 1)
+# Using OrderedDict for FIFO eviction when max size exceeded
+_seen_trade_ids: OrderedDict[str, None] = OrderedDict()
 # Limit size to prevent unbounded memory growth
 _MAX_SEEN_TRADES = 1000
 
@@ -78,13 +80,13 @@ def handle_trade_completed(payload: Dict[str, Any], bot: discord.Client) -> None
             logger.debug(f"Ignoring duplicate trade_id: {trade_id}")
             return
 
-        # Add to seen set
-        _seen_trade_ids.add(trade_id)
+        # Add to seen dict (move to end if already exists)
+        _seen_trade_ids[trade_id] = None
 
         # Prevent unbounded memory growth - keep only last N trades
         if len(_seen_trade_ids) > _MAX_SEEN_TRADES:
-            # Remove oldest entry (set.pop() removes arbitrary element)
-            _seen_trade_ids.pop()
+            # Remove oldest entry (FIFO)
+            _seen_trade_ids.popitem(last=False)
             logger.debug(f"Pruned seen_trade_ids cache (size: {len(_seen_trade_ids)})")
 
     logger.info("Received trade completed event")
