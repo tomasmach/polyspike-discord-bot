@@ -218,7 +218,7 @@ class TestMessageRouting(unittest.TestCase):
         """Test message without timestamp field."""
         handler = Mock()
         self.mqtt_client.register_handler("polyspike/+", handler)
-        msg = self.create_mock_message("polyspike/test", {"data": "value", "timestamp": time.time()})
+        msg = self.create_mock_message("polyspike/test", {"data": "value"})
         self.mqtt_client.on_message(None, None, msg)
         handler.assert_called_once()
 
