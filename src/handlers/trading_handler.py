@@ -118,35 +118,14 @@ async def _send_position_opened_notification(
         # Create embed (embed builder handles missing fields gracefully)
         embed = create_position_opened_embed(payload)
 
-        # Get notification channel
-        channel_id = bot.config.discord_channel_id
-        channel = bot.get_channel(channel_id)
+        # Send using safe send method (handles all error cases)
+        success = await bot.safe_send_to_channel(embed)
 
-        if channel is None:
-            logger.error(
-                f"Notification channel {channel_id} not found. "
-                "Please check DISCORD_CHANNEL_ID in .env"
-            )
-            return
+        if success:
+            logger.info("Position opened notification sent successfully")
+        else:
+            logger.error("Failed to send position opened notification (see errors above)")
 
-        if not isinstance(channel, discord.TextChannel):
-            logger.error(
-                f"Channel {channel_id} is not a text channel. "
-                f"Got {type(channel).__name__}"
-            )
-            return
-
-        # Send embed
-        await channel.send(embed=embed)
-        logger.info("Position opened notification sent successfully")
-
-    except discord.errors.Forbidden:
-        logger.error(
-            "Permission denied: Cannot send messages to notification channel. "
-            "Please check bot permissions in Discord server settings."
-        )
-    except discord.errors.HTTPException as e:
-        logger.error(f"Failed to send position opened notification: {e}")
     except Exception as e:
         logger.error(
             f"Unexpected error in _send_position_opened_notification: {e}",
@@ -179,35 +158,14 @@ async def _send_trade_completed_notification(
         # Create embed (embed builder handles missing fields gracefully)
         embed = create_trade_completed_embed(payload)
 
-        # Get notification channel
-        channel_id = bot.config.discord_channel_id
-        channel = bot.get_channel(channel_id)
+        # Send using safe send method (handles all error cases)
+        success = await bot.safe_send_to_channel(embed)
 
-        if channel is None:
-            logger.error(
-                f"Notification channel {channel_id} not found. "
-                "Please check DISCORD_CHANNEL_ID in .env"
-            )
-            return
+        if success:
+            logger.info("Trade completed notification sent successfully")
+        else:
+            logger.error("Failed to send trade completed notification (see errors above)")
 
-        if not isinstance(channel, discord.TextChannel):
-            logger.error(
-                f"Channel {channel_id} is not a text channel. "
-                f"Got {type(channel).__name__}"
-            )
-            return
-
-        # Send embed
-        await channel.send(embed=embed)
-        logger.info("Trade completed notification sent successfully")
-
-    except discord.errors.Forbidden:
-        logger.error(
-            "Permission denied: Cannot send messages to notification channel. "
-            "Please check bot permissions in Discord server settings."
-        )
-    except discord.errors.HTTPException as e:
-        logger.error(f"Failed to send trade completed notification: {e}")
     except Exception as e:
         logger.error(
             f"Unexpected error in _send_trade_completed_notification: {e}",

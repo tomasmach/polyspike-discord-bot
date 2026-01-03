@@ -146,14 +146,20 @@ class PolySpikeBot(discord.Client):
 
         Logs disconnection for monitoring purposes.
         """
-        self.logger.warning("Discord bot disconnected")
+        self.logger.warning(
+            f"Discord bot disconnected (User: {self.user}, "
+            f"Latency: {self.latency*1000:.0f}ms before disconnect)"
+        )
 
     async def on_resumed(self) -> None:
         """Called when bot resumes connection after disconnect.
 
         Logs reconnection for monitoring purposes.
         """
-        self.logger.info("Discord bot connection resumed")
+        self.logger.info(
+            f"Discord bot connection resumed successfully "
+            f"(User: {self.user}, Latency: {self.latency*1000:.0f}ms)"
+        )
 
     async def on_error(self, event: str, *args, **kwargs) -> None:
         """Global error handler for Discord events.
@@ -167,6 +173,74 @@ class PolySpikeBot(discord.Client):
             f"Discord event error in {event}",
             exc_info=True,
         )
+
+    async def safe_send_to_channel(
+        self,
+        embed: discord.Embed,
+        content: Optional[str] = None,
+    ) -> bool:
+        """Safely send message to notification channel with error handling.
+
+        Handles common Discord errors:
+        - Channel not found (deleted or bot removed from server)
+        - Permission errors (missing Send Messages permission)
+        - Rate limiting
+        - Other Discord API errors
+
+        Args:
+            embed: Discord embed to send.
+            content: Optional text content to send with embed.
+
+        Returns:
+            True if message was sent successfully, False otherwise.
+        """
+        if self.notification_channel is None:
+            self.logger.error(
+                "Cannot send message: notification channel not set. "
+                "Channel may not exist or bot lacks access."
+            )
+            return False
+
+        try:
+            await self.notification_channel.send(content=content, embed=embed)
+            return True
+
+        except discord.Forbidden as e:
+            self.logger.error(
+                f"Permission denied when sending to channel #{self.notification_channel.name} "
+                f"(ID: {self.notification_channel.id}). "
+                f"Error: {e}. "
+                "Bot may be missing 'Send Messages' or 'Embed Links' permission."
+            )
+            return False
+
+        except discord.NotFound as e:
+            self.logger.error(
+                f"Channel #{self.notification_channel.name} (ID: {self.notification_channel.id}) "
+                f"not found. Channel may have been deleted. Error: {e}"
+            )
+            # Clear cached channel since it no longer exists
+            self.notification_channel = None
+            return False
+
+        except discord.HTTPException as e:
+            if e.status == 429:  # Rate limited
+                self.logger.warning(
+                    f"Rate limited when sending to Discord. "
+                    f"Retry after: {e.retry_after if hasattr(e, 'retry_after') else 'unknown'}s"
+                )
+            else:
+                self.logger.error(
+                    f"HTTP error when sending to Discord: {e.status} - {e.text}"
+                )
+            return False
+
+        except Exception as e:
+            self.logger.error(
+                f"Unexpected error when sending message to Discord: {e}",
+                exc_info=True,
+            )
+            return False
 
     async def shutdown(self) -> None:
         """Gracefully shutdown bot and all components.

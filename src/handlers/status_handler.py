@@ -97,43 +97,16 @@ async def _send_bot_started_notification(
     """
     logger = get_logger()
 
-    try:
-        # Create embed
-        embed = create_bot_started_embed(payload)
+    # Create embed
+    embed = create_bot_started_embed(payload)
 
-        # Get notification channel
-        channel_id = bot.config.discord_channel_id
-        channel = bot.get_channel(channel_id)
+    # Send using safe send method (handles all error cases)
+    success = await bot.safe_send_to_channel(embed)
 
-        if channel is None:
-            logger.error(
-                f"Notification channel {channel_id} not found. "
-                "Please check DISCORD_CHANNEL_ID in .env"
-            )
-            return
-
-        if not isinstance(channel, discord.TextChannel):
-            logger.error(
-                f"Channel {channel_id} is not a text channel. "
-                f"Got {type(channel).__name__}"
-            )
-            return
-
-        # Send embed
-        await channel.send(embed=embed)
+    if success:
         logger.info("Bot started notification sent successfully")
-
-    except discord.errors.Forbidden:
-        logger.error(
-            "Permission denied: Cannot send messages to notification channel. "
-            "Please check bot permissions in Discord server settings."
-        )
-    except discord.errors.HTTPException as e:
-        logger.error(f"Failed to send bot started notification: {e}")
-    except Exception as e:
-        logger.error(
-            f"Unexpected error in _send_bot_started_notification: {e}", exc_info=True
-        )
+    else:
+        logger.error("Failed to send bot started notification (see errors above)")
 
 
 async def _send_bot_stopped_notification(
@@ -147,43 +120,16 @@ async def _send_bot_stopped_notification(
     """
     logger = get_logger()
 
-    try:
-        # Create embed
-        embed = create_bot_stopped_embed(payload)
+    # Create embed
+    embed = create_bot_stopped_embed(payload)
 
-        # Get notification channel
-        channel_id = bot.config.discord_channel_id
-        channel = bot.get_channel(channel_id)
+    # Send using safe send method (handles all error cases)
+    success = await bot.safe_send_to_channel(embed)
 
-        if channel is None:
-            logger.error(
-                f"Notification channel {channel_id} not found. "
-                "Please check DISCORD_CHANNEL_ID in .env"
-            )
-            return
-
-        if not isinstance(channel, discord.TextChannel):
-            logger.error(
-                f"Channel {channel_id} is not a text channel. "
-                f"Got {type(channel).__name__}"
-            )
-            return
-
-        # Send embed
-        await channel.send(embed=embed)
+    if success:
         logger.info("Bot stopped notification sent successfully")
-
-    except discord.errors.Forbidden:
-        logger.error(
-            "Permission denied: Cannot send messages to notification channel. "
-            "Please check bot permissions in Discord server settings."
-        )
-    except discord.errors.HTTPException as e:
-        logger.error(f"Failed to send bot stopped notification: {e}")
-    except Exception as e:
-        logger.error(
-            f"Unexpected error in _send_bot_stopped_notification: {e}", exc_info=True
-        )
+    else:
+        logger.error("Failed to send bot stopped notification (see errors above)")
 
 
 async def _send_bot_error_notification(
@@ -198,40 +144,13 @@ async def _send_bot_error_notification(
     logger = get_logger()
     severity = payload.get("severity", "error")
 
-    try:
-        # Create embed
-        embed = create_bot_error_embed(payload)
+    # Create embed
+    embed = create_bot_error_embed(payload)
 
-        # Get notification channel
-        channel_id = bot.config.discord_channel_id
-        channel = bot.get_channel(channel_id)
+    # Send using safe send method (handles all error cases)
+    success = await bot.safe_send_to_channel(embed)
 
-        if channel is None:
-            logger.error(
-                f"Notification channel {channel_id} not found. "
-                "Please check DISCORD_CHANNEL_ID in .env"
-            )
-            return
-
-        if not isinstance(channel, discord.TextChannel):
-            logger.error(
-                f"Channel {channel_id} is not a text channel. "
-                f"Got {type(channel).__name__}"
-            )
-            return
-
-        # Send embed
-        await channel.send(embed=embed)
+    if success:
         logger.info(f"Bot error notification ({severity}) sent successfully")
-
-    except discord.errors.Forbidden:
-        logger.error(
-            "Permission denied: Cannot send messages to notification channel. "
-            "Please check bot permissions in Discord server settings."
-        )
-    except discord.errors.HTTPException as e:
-        logger.error(f"Failed to send bot error notification: {e}")
-    except Exception as e:
-        logger.error(
-            f"Unexpected error in _send_bot_error_notification: {e}", exc_info=True
-        )
+    else:
+        logger.error("Failed to send bot error notification (see errors above)")

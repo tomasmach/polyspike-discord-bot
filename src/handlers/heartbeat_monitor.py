@@ -152,34 +152,14 @@ class HeartbeatMonitor:
             }
             embed = create_heartbeat_alert_embed(alert_data)
 
-            # Get notification channel
-            channel_id = self.bot.config.discord_channel_id
-            channel = self.bot.get_channel(channel_id)
+            # Send using safe send method (handles all error cases)
+            success = await self.bot.safe_send_to_channel(embed)
 
-            if channel is None:
-                self.logger.error(
-                    f"Notification channel {channel_id} not found. "
-                    "Cannot send heartbeat alert."
-                )
-                return
+            if success:
+                self.logger.info("Heartbeat timeout alert sent to Discord")
+            else:
+                self.logger.error("Failed to send heartbeat alert (see errors above)")
 
-            if not isinstance(channel, discord.TextChannel):
-                self.logger.error(
-                    f"Channel {channel_id} is not a text channel. "
-                    f"Cannot send heartbeat alert."
-                )
-                return
-
-            # Send alert
-            await channel.send(embed=embed)
-            self.logger.info("Heartbeat timeout alert sent to Discord")
-
-        except discord.errors.Forbidden:
-            self.logger.error(
-                "Permission denied: Cannot send heartbeat alert to notification channel"
-            )
-        except discord.errors.HTTPException as e:
-            self.logger.error(f"Failed to send heartbeat alert: {e}")
         except Exception as e:
             self.logger.error(
                 f"Unexpected error sending heartbeat alert: {e}", exc_info=True
