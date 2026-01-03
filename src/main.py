@@ -15,6 +15,7 @@ import time
 from typing import Any, Dict
 
 from src.bot import create_discord_bot, setup_signal_handlers
+from src.commands import stats
 from src.config import Config, load_config
 from src.handlers import balance_handler, status_handler, trading_handler
 from src.mqtt_client import MQTTClient
@@ -70,6 +71,12 @@ def register_mqtt_handlers(mqtt_client: MQTTClient, bot) -> None:
     mqtt_client.register_handler(
         "polyspike/balance/update",
         lambda payload: balance_handler.handle_balance_update(payload, bot),
+    )
+
+    # Session stats handler (for /stats command cache)
+    mqtt_client.register_handler(
+        "polyspike/stats/session",
+        lambda payload: stats.cache_session_stats(payload),
     )
 
     # Log registered handlers

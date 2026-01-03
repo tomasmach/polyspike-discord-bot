@@ -76,12 +76,15 @@ class PolySpikeBot(discord.Client):
         """
         self.logger.info("Running setup hook")
 
+        # Import commands (imported here to avoid circular imports)
+        from src.commands import balance, stats, status
+
         # Register slash commands
-        # TODO: Import and register commands in Phase 6
-        # from src.commands import status, balance, stats
-        # self.tree.add_command(status.status_command)
-        # self.tree.add_command(balance.balance_command)
-        # self.tree.add_command(stats.stats_command)
+        self.tree.add_command(status.status_command)
+        self.tree.add_command(balance.balance_command)
+        self.tree.add_command(stats.stats_command)
+
+        self.logger.info("Registered 3 slash commands: /status, /balance, /stats")
 
         # Sync commands with Discord guild
         guild = discord.Object(id=self.config.discord_guild_id)
