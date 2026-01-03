@@ -107,13 +107,16 @@ async def balance_command(interaction: discord.Interaction) -> None:
         update_reason = balance_data.get("update_reason", "unknown")
         timestamp = balance_data.get("timestamp", datetime.now(timezone.utc).timestamp())
 
-        # Determine embed color based on total P&L
+        # Determine embed color and emoji based on total P&L
         if total_pnl > 0:
             color = discord.Color.green()
+            pnl_emoji = "📈"
         elif total_pnl < 0:
             color = discord.Color.red()
+            pnl_emoji = "📉"
         else:
             color = discord.Color.light_gray()
+            pnl_emoji = "⚪"
 
         # Create embed
         embed = discord.Embed(
