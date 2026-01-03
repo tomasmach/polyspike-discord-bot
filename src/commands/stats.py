@@ -186,6 +186,7 @@ async def stats_command(interaction: discord.Interaction) -> None:
         # P&L metrics
         pnl_sign = "+" if total_pnl >= 0 else ""
         pnl_pct_sign = "+" if total_pnl_pct >= 0 else ""
+        status_emoji = "📈" if total_pnl >= 0 else "📉"
 
         embed.add_field(
             name=f"{status_emoji} Total P&L",
