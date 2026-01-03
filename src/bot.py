@@ -266,7 +266,7 @@ class PolySpikeBot(discord.Client):
 
         # Disconnect MQTT client (handled by main.py)
         if self.mqtt_client is not None:
-            self.mqtt_client.disconnect()
+            await self.mqtt_client.disconnect()
             self.logger.info("MQTT client disconnected")
 
         # Close Discord connection
