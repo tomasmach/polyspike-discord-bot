@@ -49,23 +49,6 @@ def format_percentage(value: float) -> str:
         return f"{pct:.2f}%"
 
 
-def get_pnl_emoji(pnl: float) -> str:
-    """Get emoji for P&L value.
-
-    Args:
-        pnl: Profit & Loss value.
-
-    Returns:
-        Emoji string representing P&L status.
-    """
-    if pnl > 0:
-        return "📈"
-    elif pnl < 0:
-        return "📉"
-    else:
-        return "➖"
-
-
 @app_commands.command(
     name="balance",
     description="Show current trading bot balance and P&L",
@@ -133,9 +116,8 @@ async def balance_command(interaction: discord.Interaction) -> None:
             color = discord.Color.light_gray()
 
         # Create embed
-        pnl_emoji = get_pnl_emoji(total_pnl)
         embed = discord.Embed(
-            title=f"{pnl_emoji} Trading Bot Balance",
+            title="Trading Bot Balance",
             description=f"Current account status and P&L",
             color=color,
             timestamp=datetime.fromtimestamp(timestamp, tz=timezone.utc),
@@ -143,19 +125,19 @@ async def balance_command(interaction: discord.Interaction) -> None:
 
         # Balance section
         embed.add_field(
-            name="💰 Cash Balance",
+            name="Cash Balance",
             value=f"**${balance:.2f}**",
             inline=True,
         )
 
         embed.add_field(
-            name="💎 Total Equity",
+            name="Total Equity",
             value=f"**${equity:.2f}**",
             inline=True,
         )
 
         embed.add_field(
-            name="✅ Available",
+            name="Available",
             value=f"${available_balance:.2f}",
             inline=True,
         )
@@ -163,7 +145,7 @@ async def balance_command(interaction: discord.Interaction) -> None:
         # Position info
         if locked_in_positions > 0:
             embed.add_field(
-                name="🔒 Locked (Open Positions)",
+                name="Locked (Open Positions)",
                 value=f"${locked_in_positions:.2f}",
                 inline=True,
             )
@@ -172,7 +154,7 @@ async def balance_command(interaction: discord.Interaction) -> None:
         if unrealized_pnl != 0:
             unrealized_display = format_currency(unrealized_pnl)
             embed.add_field(
-                name="📊 Unrealized P&L",
+                name="Unrealized P&L",
                 value=f"**{unrealized_display}**",
                 inline=True,
             )
@@ -192,16 +174,9 @@ async def balance_command(interaction: discord.Interaction) -> None:
         )
 
         # Update reason
-        reason_emoji_map = {
-            "periodic": "⏰",
-            "trade": "💹",
-            "significant_change": "⚡",
-        }
-        reason_emoji = reason_emoji_map.get(update_reason, "ℹ️")
-
         embed.add_field(
-            name="📝 Last Update Reason",
-            value=f"{reason_emoji} {update_reason.replace('_', ' ').title()}",
+            name="Last Update Reason",
+            value=f"{update_reason.replace('_', ' ').title()}",
             inline=False,
         )
 
@@ -220,7 +195,7 @@ async def balance_command(interaction: discord.Interaction) -> None:
 
         # Send error message to user
         error_embed = discord.Embed(
-            title="❌ Error",
+            title="Error",
             description=(
                 "An error occurred while fetching balance data. "
                 "Please try again later."

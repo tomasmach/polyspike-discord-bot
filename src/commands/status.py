@@ -133,9 +133,9 @@ async def status_command(interaction: discord.Interaction) -> None:
             last_seen = format_timestamp_relative(last_heartbeat_time)
 
             embed = discord.Embed(
-                title="🔴 Trading Bot Status: OFFLINE",
+                title="Trading Bot Status: OFFLINE",
                 description=(
-                    f"⚠️ **Trading bot appears to be offline**\n\n"
+                    f"**Trading bot appears to be offline**\n\n"
                     f"Last heartbeat: **{last_seen}**\n"
                     f"Timeout threshold: {heartbeat_monitor.timeout_seconds}s"
                 ),
@@ -166,7 +166,7 @@ async def status_command(interaction: discord.Interaction) -> None:
         # For now, we show what's available from the last heartbeat
 
         embed = discord.Embed(
-            title="🟢 Trading Bot Status: ONLINE",
+            title="Trading Bot Status: ONLINE",
             description="Trading bot is active and sending heartbeats",
             color=discord.Color.green(),
             timestamp=datetime.now(timezone.utc),
@@ -175,7 +175,7 @@ async def status_command(interaction: discord.Interaction) -> None:
         # Last heartbeat time
         last_seen = format_timestamp_relative(last_heartbeat_time)
         embed.add_field(
-            name="📡 Last Heartbeat",
+            name="Last Heartbeat",
             value=f"{last_seen}",
             inline=True,
         )
@@ -183,11 +183,11 @@ async def status_command(interaction: discord.Interaction) -> None:
         # Connection quality indicator
         if time_since_heartbeat is not None:
             if time_since_heartbeat < 45:
-                connection_status = "🟢 Excellent"
+                connection_status = "Excellent"
             elif time_since_heartbeat < 60:
-                connection_status = "🟡 Good"
+                connection_status = "Good"
             else:
-                connection_status = "🟠 Fair"
+                connection_status = "Fair"
 
             embed.add_field(
                 name="Connection",
@@ -197,7 +197,7 @@ async def status_command(interaction: discord.Interaction) -> None:
 
         # Note about detailed stats
         embed.add_field(
-            name="ℹ️ Note",
+            name="Note",
             value=(
                 "Detailed statistics (uptime, balance, trades) "
                 "will be available in future updates.\n"
@@ -216,7 +216,7 @@ async def status_command(interaction: discord.Interaction) -> None:
 
         # Send error message to user
         error_embed = discord.Embed(
-            title="❌ Error",
+            title="Error",
             description=(
                 "An error occurred while fetching bot status. "
                 "Please try again later."

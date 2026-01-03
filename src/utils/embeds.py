@@ -34,7 +34,7 @@ def create_position_opened_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="🟢 Position Opened",
+        title="Position Opened",
         description=market_name,
         color=0x00FF00,  # Green
         timestamp=datetime.fromtimestamp(timestamp)
@@ -98,7 +98,7 @@ def create_trade_completed_embed(payload: Dict[str, Any]) -> discord.Embed:
     color = 0x00FF00 if pnl >= 0 else 0xFF0000  # Green if profit, red if loss
 
     embed = discord.Embed(
-        title="💰 Trade Completed",
+        title="Trade Completed",
         description=market_name,
         color=color,
         timestamp=datetime.fromtimestamp(timestamp)
@@ -166,7 +166,7 @@ def create_balance_update_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="💵 Balance Update",
+        title="Balance Update",
         description=f"Reason: {update_reason.replace('_', ' ').title()}",
         color=0x3498DB,  # Blue
         timestamp=datetime.fromtimestamp(timestamp)
@@ -231,7 +231,7 @@ def create_bot_started_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="🚀 Bot Started",
+        title="Bot Started",
         description=f"Session: `{session_id}`",
         color=0x00FF00,  # Green
         timestamp=datetime.fromtimestamp(timestamp)
@@ -284,7 +284,7 @@ def create_bot_stopped_embed(payload: Dict[str, Any]) -> discord.Embed:
     timestamp = payload.get("timestamp", datetime.now().timestamp())
 
     embed = discord.Embed(
-        title="🛑 Bot Stopped",
+        title="Bot Stopped",
         description=f"Session: `{session_id}`",
         color=0xFF0000,  # Red
         timestamp=datetime.fromtimestamp(timestamp)
@@ -337,7 +337,7 @@ def create_bot_error_embed(payload: Dict[str, Any]) -> discord.Embed:
     color = color_map.get(severity, 0xFF0000)
 
     embed = discord.Embed(
-        title=f"⚠️ Bot Error ({severity.upper()})",
+        title=f"Bot Error ({severity.upper()})",
         description=error_message,
         color=color,
         timestamp=datetime.fromtimestamp(timestamp)
@@ -368,7 +368,7 @@ def create_heartbeat_alert_embed(data: Dict[str, Any]) -> discord.Embed:
     missing_seconds = data.get("missing_seconds", 0)
 
     embed = discord.Embed(
-        title="⚠️ Heartbeat Alert",
+        title="Heartbeat Alert",
         description="No heartbeat received from trading bot",
         color=0xFFAA00,  # Yellow
         timestamp=datetime.now()
@@ -390,7 +390,51 @@ def create_heartbeat_alert_embed(data: Dict[str, Any]) -> discord.Embed:
 
     embed.add_field(
         name="Status",
-        value="⚠️ Bot may be offline or experiencing issues",
+        value="Bot may be offline or experiencing issues",
+        inline=False
+    )
+
+    return embed
+
+
+def create_mqtt_connection_alert_embed(message: str, downtime_seconds: float) -> discord.Embed:
+    """Create embed for MQTT connection alert.
+
+    Args:
+        message: Alert message describing the issue.
+        downtime_seconds: Number of seconds MQTT has been down.
+
+    Returns:
+        Discord Embed with red color and connection alert details.
+    """
+    downtime_int = int(downtime_seconds)
+
+    embed = discord.Embed(
+        title="MQTT Connection Alert",
+        description=message,
+        color=0xFF0000,  # Red
+        timestamp=datetime.now()
+    )
+
+    embed.add_field(
+        name="Downtime",
+        value=_format_duration(downtime_int),
+        inline=True
+    )
+
+    embed.add_field(
+        name="Status",
+        value="Unable to reach MQTT broker",
+        inline=True
+    )
+
+    embed.add_field(
+        name="Action Required",
+        value=(
+            "• Check MQTT broker is running: `systemctl status mosquitto`\n"
+            "• Check network connectivity\n"
+            "• Review bot logs for connection errors"
+        ),
         inline=False
     )
 

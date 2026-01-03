@@ -150,17 +150,14 @@ async def stats_command(interaction: discord.Interaction) -> None:
         # Determine embed color based on total P&L
         if total_pnl > 0:
             color = discord.Color.green()
-            status_emoji = "📈"
         elif total_pnl < 0:
             color = discord.Color.red()
-            status_emoji = "📉"
         else:
             color = discord.Color.light_gray()
-            status_emoji = "➖"
 
         # Create embed
         embed = discord.Embed(
-            title=f"{status_emoji} Trading Session Statistics",
+            title="Trading Session Statistics",
             description=f"Session: `{session_id}`",
             color=color,
             timestamp=datetime.fromtimestamp(timestamp, tz=timezone.utc),
@@ -169,19 +166,19 @@ async def stats_command(interaction: discord.Interaction) -> None:
         # Session info
         duration_str = format_duration(duration_seconds)
         embed.add_field(
-            name="⏱️ Session Duration",
+            name="Session Duration",
             value=duration_str,
             inline=True,
         )
 
         embed.add_field(
-            name="💰 Initial Balance",
+            name="Initial Balance",
             value=f"${initial_balance:.2f}",
             inline=True,
         )
 
         embed.add_field(
-            name="💎 Final Balance",
+            name="Final Balance",
             value=f"${final_balance:.2f}",
             inline=True,
         )
@@ -198,54 +195,48 @@ async def stats_command(interaction: discord.Interaction) -> None:
 
         # Trade statistics
         embed.add_field(
-            name="📊 Total Trades",
+            name="Total Trades",
             value=f"**{total_trades}**",
             inline=True,
         )
 
         embed.add_field(
-            name="✅ Winning Trades",
+            name="Winning Trades",
             value=f"{winning_trades}",
             inline=True,
         )
 
         embed.add_field(
-            name="❌ Losing Trades",
+            name="Losing Trades",
             value=f"{losing_trades}",
             inline=True,
         )
 
-        # Win rate with visual indicator
+        # Win rate
         win_rate_pct = win_rate * 100
-        if win_rate >= 0.7:
-            win_rate_emoji = "🔥"
-        elif win_rate >= 0.5:
-            win_rate_emoji = "✅"
-        else:
-            win_rate_emoji = "⚠️"
 
         embed.add_field(
-            name=f"{win_rate_emoji} Win Rate",
+            name="Win Rate",
             value=f"**{win_rate_pct:.1f}%**",
             inline=True,
         )
 
         # Average metrics
         embed.add_field(
-            name="📈 Avg Win",
+            name="Avg Win",
             value=f"${avg_win:.2f}",
             inline=True,
         )
 
         embed.add_field(
-            name="📉 Avg Loss",
+            name="Avg Loss",
             value=f"${abs(avg_loss):.2f}",
             inline=True,
         )
 
         # Risk metrics
         embed.add_field(
-            name="⚠️ Max Drawdown",
+            name="Max Drawdown",
             value=f"${max_drawdown:.2f}",
             inline=True,
         )
@@ -254,7 +245,7 @@ async def stats_command(interaction: discord.Interaction) -> None:
         if avg_loss != 0 and losing_trades > 0:
             profit_factor = (avg_win * winning_trades) / abs(avg_loss * losing_trades)
             embed.add_field(
-                name="⚖️ Profit Factor",
+                name="Profit Factor",
                 value=f"{profit_factor:.2f}",
                 inline=True,
             )
@@ -273,7 +264,7 @@ async def stats_command(interaction: discord.Interaction) -> None:
 
         # Send error message to user
         error_embed = discord.Embed(
-            title="❌ Error",
+            title="Error",
             description=(
                 "An error occurred while fetching session statistics. "
                 "Please try again later."

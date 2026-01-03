@@ -28,6 +28,7 @@ class MQTTClient:
             client_id="polyspike_discord_bot"
         )
         self.client.on_connect = self.on_connect
+        self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
 
         self.connected = False
@@ -36,6 +37,9 @@ class MQTTClient:
         self._retry_count = 0
         self._stopping = False
         self._loop_running = False
+        self._disconnect_time: Optional[float] = None
+        self._disconnect_alert_sent = False
+        self._alert_callback: Optional[Callable] = None
         self.message_handlers: list[tuple[str, Callable]] = []
 
     def on_connect(self, client, userdata, flags, rc):
@@ -48,13 +52,60 @@ class MQTTClient:
             rc: Return code (0 = success).
         """
         if rc == 0:
-            self.logger.info("Connected to MQTT broker")
+            # Log reconnection info if we were disconnected
+            if self._disconnect_time is not None:
+                downtime = time.time() - self._disconnect_time
+                self.logger.info(f"Reconnected to MQTT broker after {downtime:.1f}s downtime")
+            else:
+                self.logger.info("Connected to MQTT broker successfully")
+
             client.subscribe(f"{self.config.mqtt_topic_prefix}#")
             self.connected = True
             self._retry_count = 0
+            self._disconnect_time = None
+            self._disconnect_alert_sent = False
         else:
-            self.logger.error(f"MQTT connection failed with code: {rc}")
+            error_messages = {
+                1: "Connection refused - incorrect protocol version",
+                2: "Connection refused - invalid client identifier",
+                3: "Connection refused - server unavailable",
+                4: "Connection refused - bad username or password",
+                5: "Connection refused - not authorized"
+            }
+            error_msg = error_messages.get(rc, f"Unknown error code: {rc}")
+            self.logger.error(f"MQTT connection failed: {error_msg} (code {rc})")
             self.connected = False
+
+    def on_disconnect(self, client, userdata, rc, properties=None):
+        """Handle MQTT disconnection callback.
+
+        Args:
+            client: MQTT client instance.
+            userdata: User data.
+            rc: Return code (0 = clean disconnect, >0 = unexpected).
+            properties: MQTT v5 properties (optional, for compatibility).
+        """
+        self.connected = False
+
+        if self._disconnect_time is None:
+            self._disconnect_time = time.time()
+
+        if rc == 0:
+            self.logger.info("Disconnected from MQTT broker (clean disconnect)")
+        else:
+            disconnect_reasons = {
+                1: "Incorrect protocol version",
+                2: "Invalid client identifier",
+                3: "Server unavailable",
+                4: "Bad username or password",
+                5: "Not authorized",
+                7: "Connection lost",
+            }
+            reason = disconnect_reasons.get(rc, f"Unknown reason (code {rc})")
+            self.logger.warning(f"Disconnected from MQTT broker unexpectedly: {reason}")
+
+        if not self._stopping:
+            self.logger.info("Will attempt to reconnect via retry task...")
 
     def on_message(self, client, userdata, msg):
         """Handle incoming MQTT messages.
@@ -151,12 +202,39 @@ class MQTTClient:
         self.logger.info("MQTT client disconnected")
 
     async def _retry_connection_task(self):
-        """Background task for connection retry with exponential backoff."""
+        """Background task for connection retry with exponential backoff.
+
+        Sends Discord alert if MQTT is down for >5 minutes.
+        """
         base_delay = 1.0
         max_delay = 60.0
+        alert_threshold = 300.0  # 5 minutes
 
         while not self._stopping:
             if not self.connected:
+                # Check if we should send a Discord alert
+                if (self._disconnect_time is not None and
+                    not self._disconnect_alert_sent and
+                    self._alert_callback is not None):
+
+                    downtime = time.time() - self._disconnect_time
+
+                    if downtime >= alert_threshold:
+                        self.logger.warning(
+                            f"MQTT broker down for {downtime:.0f}s (>{alert_threshold:.0f}s threshold). "
+                            "Sending Discord alert..."
+                        )
+                        try:
+                            self._alert_callback(
+                                f"MQTT broker unreachable for {downtime:.0f}s",
+                                downtime
+                            )
+                            self._disconnect_alert_sent = True
+                            self.logger.info("Discord alert sent successfully")
+                        except Exception as e:
+                            self.logger.error(f"Failed to send Discord alert: {e}", exc_info=True)
+
+                # Retry connection with exponential backoff
                 delay = min(base_delay * (2 ** self._retry_count), max_delay)
                 self.logger.info(f"Retry connection in {delay:.1f}s (attempt {self._retry_count + 1})")
                 await asyncio.sleep(delay)
@@ -175,7 +253,7 @@ class MQTTClient:
                     self.logger.info("Reconnected to MQTT broker")
                 except Exception as e:
                     self._retry_count += 1
-                    self.logger.error(f"Reconnection failed: {e}")
+                    self.logger.error(f"Reconnection attempt {self._retry_count} failed: {e}")
 
             if self._stopping:
                 break
@@ -244,6 +322,17 @@ class MQTTClient:
             List of registered topic patterns.
         """
         return [pattern for pattern, _ in self.message_handlers]
+
+    def set_alert_callback(self, callback: Callable[[str, float], None]):
+        """Set callback for MQTT connection alerts.
+
+        Callback will be called when MQTT broker is down for >5 minutes.
+
+        Args:
+            callback: Function to call with (message, downtime_seconds).
+        """
+        self._alert_callback = callback
+        self.logger.info("MQTT alert callback registered")
 
     def stop(self):
         """Stop the MQTT client and background tasks."""

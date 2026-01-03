@@ -19,6 +19,7 @@ from src.commands import stats
 from src.config import Config, load_config
 from src.handlers import balance_handler, status_handler, trading_handler
 from src.mqtt_client import MQTTClient
+from src.utils.embeds import create_mqtt_connection_alert_embed
 from src.utils.logger import get_logger, setup_logging
 
 
@@ -86,6 +87,47 @@ def register_mqtt_handlers(mqtt_client: MQTTClient, bot) -> None:
         logger.info(f"  - {topic}")
 
 
+def setup_mqtt_alert_callback(mqtt_client: MQTTClient, bot) -> None:
+    """Setup MQTT connection alert callback.
+
+    This callback is triggered when MQTT broker is unreachable for >5 minutes.
+    Sends a Discord notification to alert about the connection issue.
+
+    Args:
+        mqtt_client: MQTT client instance to register alert callback with.
+        bot: Discord bot instance for sending alerts.
+    """
+    logger = get_logger()
+
+    def mqtt_alert_callback(message: str, downtime_seconds: float) -> None:
+        """Callback function for MQTT connection alerts.
+
+        Args:
+            message: Alert message describing the issue.
+            downtime_seconds: Number of seconds MQTT has been down.
+        """
+        try:
+            if bot.notification_channel is None:
+                logger.warning("Cannot send MQTT alert - notification channel not set")
+                return
+
+            embed = create_mqtt_connection_alert_embed(message, downtime_seconds)
+
+            # Send alert synchronously (callback is called from MQTT thread)
+            asyncio.run_coroutine_threadsafe(
+                bot.notification_channel.send(embed=embed),
+                bot.loop
+            )
+
+            logger.info(f"MQTT alert sent to Discord: {message}")
+
+        except Exception as e:
+            logger.error(f"Failed to send MQTT connection alert to Discord: {e}", exc_info=True)
+
+    mqtt_client.set_alert_callback(mqtt_alert_callback)
+    logger.info("✓ MQTT alert callback configured")
+
+
 async def main() -> None:
     """Main entry point for the bot.
 
@@ -142,6 +184,10 @@ async def main() -> None:
         logger.info("Registering MQTT event handlers...")
         register_mqtt_handlers(mqtt_client, bot)
         logger.info("✓ Event handlers registered")
+
+        # 5a. Setup MQTT connection alert callback
+        logger.info("Setting up MQTT alert callback...")
+        setup_mqtt_alert_callback(mqtt_client, bot)
 
         # 6. Set startup time for balance handler (before MQTT connection)
         startup_time = time.time()
