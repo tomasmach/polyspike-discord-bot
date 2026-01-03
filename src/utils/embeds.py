@@ -10,6 +10,33 @@ from typing import Any, Dict
 import discord
 
 
+def _get_market_name(payload: Dict[str, Any]) -> str:
+    """Get market name from payload with fallback to truncated token_id.
+
+    According to MQTT API spec, market_name may be missing if the API failed.
+    In that case, we should fall back to a truncated version of token_id.
+
+    Args:
+        payload: MQTT message payload containing market data.
+
+    Returns:
+        Market name, truncated token_id (e.g., "0x1234..."), or "Unknown Market".
+    """
+    # Try to get market_name first
+    market_name = payload.get("market_name")
+    if market_name:
+        return market_name
+
+    # Fallback to truncated token_id
+    token_id = payload.get("token_id")
+    if token_id and isinstance(token_id, str) and len(token_id) > 8:
+        # Truncate to first 6 characters + "..."
+        return f"{token_id[:6]}..."
+
+    # Last resort fallback
+    return "Unknown Market"
+
+
 def create_position_opened_embed(payload: Dict[str, Any]) -> discord.Embed:
     """Create embed for position opened event.
 
@@ -17,7 +44,8 @@ def create_position_opened_embed(payload: Dict[str, Any]) -> discord.Embed:
         payload: MQTT message payload containing position data.
             Expected fields:
             - timestamp (float): Unix timestamp
-            - market_name (str): Market name
+            - market_name (str): Market name (fallback to token_id if missing)
+            - token_id (str): Token ID (used as fallback)
             - entry_price (float): Entry price
             - position_size (float): Position size in USD
             - reason (str): Entry reason
@@ -26,7 +54,7 @@ def create_position_opened_embed(payload: Dict[str, Any]) -> discord.Embed:
     Returns:
         Discord Embed with green color and position details.
     """
-    market_name = payload.get("market_name", "Unknown Market")
+    market_name = _get_market_name(payload)
     entry_price = payload.get("entry_price", 0.0)
     position_size = payload.get("position_size", 0.0)
     reason = payload.get("reason", "unknown")
@@ -73,7 +101,8 @@ def create_trade_completed_embed(payload: Dict[str, Any]) -> discord.Embed:
         payload: MQTT message payload containing trade data.
             Expected fields:
             - timestamp (float): Unix timestamp
-            - market_name (str): Market name
+            - market_name (str): Market name (fallback to token_id if missing)
+            - token_id (str): Token ID (used as fallback)
             - entry_price (float): Entry price
             - exit_price (float): Exit price
             - size (float): Position size
@@ -85,7 +114,7 @@ def create_trade_completed_embed(payload: Dict[str, Any]) -> discord.Embed:
     Returns:
         Discord Embed with color based on P&L (green=profit, red=loss).
     """
-    market_name = payload.get("market_name", "Unknown Market")
+    market_name = _get_market_name(payload)
     entry_price = payload.get("entry_price", 0.0)
     exit_price = payload.get("exit_price", 0.0)
     pnl = payload.get("pnl", 0.0)
