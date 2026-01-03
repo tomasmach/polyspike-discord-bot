@@ -25,6 +25,9 @@ _last_balance_data: Optional[Dict[str, Any]] = None
 # Time threshold for ignoring old retained messages (5 minutes)
 _OLD_MESSAGE_THRESHOLD = 300  # seconds
 
+# Set of active background tasks for balance notifications
+_active_tasks = set()
+
 
 def set_startup_time(timestamp: float) -> None:
     """Set the bot startup time for old message filtering.
@@ -80,8 +83,10 @@ def handle_balance_update(payload: Dict[str, Any], bot: discord.Client) -> None:
     _last_balance_data = payload.copy()
     logger.debug("Cached balance data for /balance command")
 
-    # Schedule async task on bot's event loop
-    asyncio.create_task(_send_balance_update_notification(payload, bot))
+    # Schedule async task on bot's event loop and keep reference
+    task = asyncio.create_task(_send_balance_update_notification(payload, bot))
+    _active_tasks.add(task)
+    task.add_done_callback(lambda t: _active_tasks.discard(t))
 
 
 async def _send_balance_update_notification(
@@ -154,3 +159,22 @@ def get_startup_time() -> float:
         Startup time as Unix timestamp.
     """
     return _startup_time
+
+
+async def cancel_active_tasks() -> None:
+    """Cancel all active background tasks and wait for them to complete.
+
+    Should be called during bot shutdown to ensure clean shutdown.
+    """
+    logger = get_logger()
+    if _active_tasks:
+        logger.info(f"Cancelling {_active_tasks.__len__()} active balance notification tasks")
+        for task in list(_active_tasks):
+            if not task.done():
+                task.cancel()
+        
+        # Wait for all tasks to be cancelled
+        if _active_tasks:
+            await asyncio.wait(_active_tasks, timeout=5.0)
+        _active_tasks.clear()
+        logger.info("All active balance notification tasks cancelled")
