@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from collections import defaultdict, deque
 from typing import Callable, Optional
 
 import paho.mqtt.client as mqtt
@@ -41,6 +42,12 @@ class MQTTClient:
         self._disconnect_alert_sent = False
         self._alert_callback: Optional[Callable] = None
         self.message_handlers: list[tuple[str, Callable]] = []
+
+        # Rate limiting detection (for spam prevention)
+        self._message_timestamps: dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
+        self._rate_limit_warnings: dict[str, float] = {}
+        self._rate_limit_threshold = 50  # messages per minute (for non-periodic topics)
+        self._rate_warning_cooldown = 300  # seconds (5 min between warnings)
 
     def on_connect(self, client, userdata, flags, rc):
         """Handle MQTT connection callback.
@@ -127,9 +134,18 @@ class MQTTClient:
             except Exception:
                 pass
 
-            if data.get("timestamp", 0) < self.startup_time - 300:
+            # Validate critical fields
+            if "timestamp" not in data:
+                self.logger.warning(
+                    f"MQTT payload missing critical field 'timestamp' on topic {topic}. "
+                    f"Message may be malformed."
+                )
+            elif data.get("timestamp", 0) < self.startup_time - 300:
                 self.logger.debug(f"Ignoring old retained message on topic: {topic}")
                 return
+
+            # Rate limiting detection (spam prevention)
+            self._check_message_rate(topic)
 
             matched = False
             for pattern, handler in self.message_handlers:
@@ -259,6 +275,42 @@ class MQTTClient:
                 break
 
             await asyncio.sleep(5.0)
+
+    def _check_message_rate(self, topic: str) -> None:
+        """Check message rate for spam detection.
+
+        Tracks message timestamps and logs warning if rate exceeds threshold.
+        Excludes periodic topics (stats, heartbeat) from rate limiting.
+
+        Args:
+            topic: MQTT topic of the message.
+        """
+        # Skip rate limiting for expected high-frequency topics
+        high_frequency_topics = ["stats/periodic", "heartbeat"]
+        if any(freq_topic in topic for freq_topic in high_frequency_topics):
+            return
+
+        current_time = time.time()
+        topic_queue = self._message_timestamps[topic]
+
+        # Add current timestamp
+        topic_queue.append(current_time)
+
+        # Count messages in last 60 seconds
+        cutoff_time = current_time - 60
+        recent_messages = sum(1 for ts in topic_queue if ts >= cutoff_time)
+
+        # Check if rate exceeds threshold
+        if recent_messages > self._rate_limit_threshold:
+            # Only log warning if we haven't warned recently (cooldown)
+            last_warning = self._rate_limit_warnings.get(topic, 0)
+            if current_time - last_warning > self._rate_warning_cooldown:
+                self.logger.warning(
+                    f"High message rate detected on topic '{topic}': "
+                    f"{recent_messages} messages in last 60s (threshold: {self._rate_limit_threshold}/min). "
+                    f"Possible spam or bot malfunction."
+                )
+                self._rate_limit_warnings[topic] = current_time
 
     def _match_topic(self, topic: str, pattern: str) -> bool:
         """Check if a topic matches an MQTT pattern.
