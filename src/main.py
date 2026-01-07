@@ -154,7 +154,7 @@ async def main() -> None:
 
         # 2. Setup logging
         print("Setting up logging...")
-        setup_logger(config.log_level)
+        setup_logger(config.log_level, config.log_file_path)
         logger = get_logger()
         logger.info("=" * 60)
         logger.info("PolySpike Discord Bot Starting")

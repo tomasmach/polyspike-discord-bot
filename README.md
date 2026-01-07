@@ -138,6 +138,7 @@ Edit the `.env` file with your settings:
 | `HEARTBEAT_TIMEOUT_SECONDS` | No | `90` | Seconds before bot is considered offline |
 | `HEARTBEAT_CHECK_INTERVAL` | No | `30` | Interval between heartbeat checks |
 | `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `LOG_FILE_PATH` | No | - | Optional path for file logging with rotation |
 
 ### Example .env
 
@@ -158,6 +159,7 @@ HEARTBEAT_CHECK_INTERVAL=30
 
 # Logging
 LOG_LEVEL=INFO
+# LOG_FILE_PATH=/var/log/polyspike-discord-bot/bot.log  # Optional
 ```
 
 ## Running the Bot
@@ -327,12 +329,51 @@ This is normal if:
 - The trading bot hasn't sent any messages yet
 - MQTT topics don't match (check `MQTT_TOPIC_PREFIX`)
 
-### Log File Locations
+### Logging
 
-| Log Type | Location |
-|----------|----------|
-| Systemd journal | `sudo journalctl -u polyspike-discord-bot` |
-| Python output | Included in systemd journal |
+By default, logs go to stdout which is captured by systemd journal. This is the recommended approach as journald handles log rotation automatically.
+
+**View logs:**
+```bash
+# Follow logs in real-time
+sudo journalctl -u polyspike-discord-bot -f
+
+# View last 100 lines
+sudo journalctl -u polyspike-discord-bot -n 100
+
+# View logs from today
+sudo journalctl -u polyspike-discord-bot --since today
+
+# View logs from last hour
+sudo journalctl -u polyspike-discord-bot --since "1 hour ago"
+
+# View logs with timestamps in local time
+sudo journalctl -u polyspike-discord-bot -o short-precise
+
+# Search for errors
+sudo journalctl -u polyspike-discord-bot -p err
+
+# Export logs to file
+sudo journalctl -u polyspike-discord-bot --since "2024-01-01" > bot_logs.txt
+```
+
+**Optional file logging:**
+
+If you need separate log files (e.g., for external log aggregation), set `LOG_FILE_PATH` in your `.env`:
+```bash
+LOG_FILE_PATH=/var/log/polyspike-discord-bot/bot.log
+```
+
+File logging uses automatic rotation:
+- Max 10MB per file
+- Keeps 5 backup files (bot.log.1, bot.log.2, etc.)
+- Total max disk usage: ~60MB
+
+Ensure the directory exists and is writable:
+```bash
+sudo mkdir -p /var/log/polyspike-discord-bot
+sudo chown pi:pi /var/log/polyspike-discord-bot
+```
 
 ### Service Won't Start After Reboot
 
