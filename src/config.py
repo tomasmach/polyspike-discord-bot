@@ -25,6 +25,7 @@ class Config:
 
     # Logging
     log_level: str
+    log_file_path: str | None = None  # Optional file logging path
 
 
 def load_config() -> Config:
@@ -70,6 +71,7 @@ def load_config() -> Config:
 
         # Logging
         log_level=os.getenv("LOG_LEVEL", "INFO"),
+        log_file_path=os.getenv("LOG_FILE_PATH"),  # None if not set
     )
 
     return config

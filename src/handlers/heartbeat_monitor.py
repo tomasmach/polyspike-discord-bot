@@ -4,11 +4,16 @@ This module monitors trading bot heartbeat messages and sends Discord alerts
 when the bot appears to be offline (heartbeat timeout).
 """
 
+from __future__ import annotations
+
 import asyncio
 import time
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import discord
+
+if TYPE_CHECKING:
+    from src.bot import PolySpikeBot
 
 from src.utils.embeds import create_heartbeat_alert_embed
 from src.utils.logger import get_logger
@@ -22,15 +27,15 @@ class HeartbeatMonitor:
     Prevents alert spam by only sending one alert per timeout event.
     """
 
-    def __init__(self, bot: discord.Client, timeout_seconds: int = 90):
+    def __init__(self, bot: PolySpikeBot, timeout_seconds: int = 90):
         """Initialize heartbeat monitor.
 
         Args:
-            bot: Discord bot client instance.
+            bot: PolySpikeBot instance used to send timeout alerts to Discord.
             timeout_seconds: Heartbeat timeout in seconds (default: 90).
                 Trading bot sends heartbeat every 30s, so 90s = 3 missed heartbeats.
         """
-        self.bot = bot
+        self.bot: PolySpikeBot = bot
         self.timeout_seconds = timeout_seconds
         self.logger = get_logger()
 

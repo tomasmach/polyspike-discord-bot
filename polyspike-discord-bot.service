@@ -1,0 +1,32 @@
+[Unit]
+Description=Polyspike Discord Bot
+Documentation=https://github.com/tomasmach/polyspike-discord-bot
+After=network-online.target mosquitto.service
+Wants=network-online.target
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/polyspike-discord-bot
+ExecStart=/home/pi/polyspike-discord-bot/venv/bin/python -m src.main
+
+# Restart configuration
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=polyspike-discord-bot
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
