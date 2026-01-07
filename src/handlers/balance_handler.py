@@ -6,11 +6,16 @@ This module handles balance update events from MQTT:
 - Balance data caching for slash commands
 """
 
+from __future__ import annotations
+
 import asyncio
 import time
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import discord
+
+if TYPE_CHECKING:
+    from src.bot import PolySpikeBot
 
 from src.utils.embeds import create_balance_update_embed
 from src.utils.logger import get_logger
@@ -45,7 +50,7 @@ def set_startup_time(timestamp: float) -> None:
     logger.info(f"Balance handler startup time set to {timestamp}")
 
 
-def handle_balance_update(payload: Dict[str, Any], bot: discord.Client) -> None:
+def handle_balance_update(payload: Dict[str, Any], bot: PolySpikeBot) -> None:
     """Handle balance update event with old message filtering.
 
     Creates async task to send Discord notification when balance updates.
@@ -90,13 +95,13 @@ def handle_balance_update(payload: Dict[str, Any], bot: discord.Client) -> None:
 
 
 async def _send_balance_update_notification(
-    payload: Dict[str, Any], bot: discord.Client
+    payload: Dict[str, Any], bot: PolySpikeBot
 ) -> None:
     """Send balance update notification to Discord channel.
 
     Args:
-        payload: MQTT message payload.
-        bot: Discord bot client instance.
+        payload: MQTT message payload containing balance data.
+        bot: PolySpikeBot instance with safe_send_to_channel method.
     """
     logger = get_logger()
 

@@ -5,11 +5,16 @@ This module handles trading-related events from MQTT:
 - Trade completed (with duplicate detection)
 """
 
+from __future__ import annotations
+
 import asyncio
 from collections import OrderedDict
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import discord
+
+if TYPE_CHECKING:
+    from src.bot import PolySpikeBot
 
 from src.utils.embeds import (
     create_position_opened_embed,
@@ -25,22 +30,27 @@ _seen_trade_ids: OrderedDict[str, None] = OrderedDict()
 _MAX_SEEN_TRADES = 1000
 
 
-def handle_position_opened(payload: Dict[str, Any], bot: discord.Client) -> None:
-    """Handle position opened event.
+def handle_position_opened(payload: Dict[str, Any], bot: PolySpikeBot) -> None:
+    """Handle position opened event from MQTT.
 
-    Creates async task to send Discord notification when a trading position is opened.
+    Creates an async task to send a Discord notification when a trading
+    position is opened. This function is called synchronously by the MQTT
+    message handler and schedules the Discord notification asynchronously.
 
     Args:
         payload: MQTT message payload containing position data.
             Expected fields:
-            - timestamp (float): Unix timestamp
-            - token_id (str): Polymarket token ID
-            - market_name (str): Market name
-            - entry_price (float): Entry price
-            - position_size (float): Position size in USD
-            - reason (str): Entry reason
-            - spike_magnitude (float, optional): Spike magnitude
-        bot: Discord bot client instance.
+            - timestamp (float): Unix timestamp of the event.
+            - token_id (str): Polymarket token ID.
+            - market_name (str): Human-readable market name.
+            - entry_price (float): Entry price for the position.
+            - position_size (float): Position size in USD.
+            - reason (str): Entry reason (e.g., "spike_detected").
+            - spike_magnitude (float, optional): Magnitude of detected spike.
+        bot: Discord bot client instance used to send notifications.
+
+    Returns:
+        None. The notification is sent asynchronously.
     """
     logger = get_logger()
     logger.info("Received position opened event")
@@ -49,27 +59,31 @@ def handle_position_opened(payload: Dict[str, Any], bot: discord.Client) -> None
     asyncio.create_task(_send_position_opened_notification(payload, bot))
 
 
-def handle_trade_completed(payload: Dict[str, Any], bot: discord.Client) -> None:
+def handle_trade_completed(payload: Dict[str, Any], bot: PolySpikeBot) -> None:
     """Handle trade completed event with duplicate detection.
 
-    Creates async task to send Discord notification when a trade is completed.
-    Implements duplicate detection using trade_id to prevent spam from QoS 1 redelivery.
+    Creates an async task to send a Discord notification when a trade is completed.
+    Implements duplicate detection using trade_id to prevent notification spam
+    from MQTT QoS 1 message redelivery.
 
     Args:
         payload: MQTT message payload containing trade data.
             Expected fields:
-            - timestamp (float): Unix timestamp
-            - trade_id (str): Unique trade ID
-            - token_id (str): Polymarket token ID
-            - market_name (str): Market name
-            - entry_price (float): Entry price
-            - exit_price (float): Exit price
-            - size (float): Position size
-            - pnl (float): Profit & Loss in USD
-            - pnl_pct (float): P&L percentage
-            - duration_seconds (int): Trade duration
-            - reason (str): Exit reason
-        bot: Discord bot client instance.
+            - timestamp (float): Unix timestamp of the event.
+            - trade_id (str): Unique trade identifier for deduplication.
+            - token_id (str): Polymarket token ID.
+            - market_name (str): Human-readable market name.
+            - entry_price (float): Entry price for the position.
+            - exit_price (float): Exit price for the position.
+            - size (float): Position size in USD.
+            - pnl (float): Realized profit/loss in USD.
+            - pnl_pct (float): P&L as a decimal (0.05 = 5%).
+            - duration_seconds (int): Trade duration in seconds.
+            - reason (str): Exit reason (e.g., "take_profit", "stop_loss").
+        bot: Discord bot client instance used to send notifications.
+
+    Returns:
+        None. The notification is sent asynchronously, or skipped if duplicate.
     """
     logger = get_logger()
 
@@ -96,7 +110,7 @@ def handle_trade_completed(payload: Dict[str, Any], bot: discord.Client) -> None
 
 
 async def _send_position_opened_notification(
-    payload: Dict[str, Any], bot: discord.Client
+    payload: Dict[str, Any], bot: PolySpikeBot
 ) -> None:
     """Send position opened notification to Discord channel.
 
@@ -136,13 +150,13 @@ async def _send_position_opened_notification(
 
 
 async def _send_trade_completed_notification(
-    payload: Dict[str, Any], bot: discord.Client
+    payload: Dict[str, Any], bot: PolySpikeBot
 ) -> None:
     """Send trade completed notification to Discord channel.
 
     Args:
-        payload: MQTT message payload.
-        bot: Discord bot client instance.
+        payload: MQTT message payload containing trade data.
+        bot: PolySpikeBot instance with safe_send_to_channel method.
     """
     logger = get_logger()
 

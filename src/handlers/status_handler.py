@@ -6,10 +6,15 @@ This module handles bot status events from MQTT:
 - Bot error/critical events
 """
 
+from __future__ import annotations
+
 import asyncio
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import discord
+
+if TYPE_CHECKING:
+    from src.bot import PolySpikeBot
 
 from src.utils.embeds import (
     create_bot_error_embed,
@@ -19,7 +24,7 @@ from src.utils.embeds import (
 from src.utils.logger import get_logger
 
 
-def handle_bot_started(payload: Dict[str, Any], bot: discord.Client) -> None:
+def handle_bot_started(payload: Dict[str, Any], bot: PolySpikeBot) -> None:
     """Handle bot started event.
 
     Creates async task to send Discord notification when trading bot starts.
@@ -42,7 +47,7 @@ def handle_bot_started(payload: Dict[str, Any], bot: discord.Client) -> None:
     asyncio.create_task(_send_bot_started_notification(payload, bot))
 
 
-def handle_bot_stopped(payload: Dict[str, Any], bot: discord.Client) -> None:
+def handle_bot_stopped(payload: Dict[str, Any], bot: PolySpikeBot) -> None:
     """Handle bot stopped event.
 
     Creates async task to send Discord notification when trading bot stops.
@@ -64,7 +69,7 @@ def handle_bot_stopped(payload: Dict[str, Any], bot: discord.Client) -> None:
     asyncio.create_task(_send_bot_stopped_notification(payload, bot))
 
 
-def handle_bot_error(payload: Dict[str, Any], bot: discord.Client) -> None:
+def handle_bot_error(payload: Dict[str, Any], bot: PolySpikeBot) -> None:
     """Handle bot error event.
 
     Creates async task to send Discord notification when trading bot encounters an error.
@@ -87,13 +92,13 @@ def handle_bot_error(payload: Dict[str, Any], bot: discord.Client) -> None:
 
 
 async def _send_bot_started_notification(
-    payload: Dict[str, Any], bot: discord.Client
+    payload: Dict[str, Any], bot: PolySpikeBot
 ) -> None:
     """Send bot started notification to Discord channel.
 
     Args:
-        payload: MQTT message payload.
-        bot: Discord bot client instance.
+        payload: MQTT message payload containing startup configuration.
+        bot: PolySpikeBot instance with safe_send_to_channel method.
     """
     logger = get_logger()
 
@@ -139,7 +144,7 @@ async def _send_bot_started_notification(
 
 
 async def _send_bot_stopped_notification(
-    payload: Dict[str, Any], bot: discord.Client
+    payload: Dict[str, Any], bot: PolySpikeBot
 ) -> None:
     """Send bot stopped notification to Discord channel.
 
@@ -191,13 +196,13 @@ async def _send_bot_stopped_notification(
 
 
 async def _send_bot_error_notification(
-    payload: Dict[str, Any], bot: discord.Client
+    payload: Dict[str, Any], bot: PolySpikeBot
 ) -> None:
     """Send bot error notification to Discord channel.
 
     Args:
-        payload: MQTT message payload.
-        bot: Discord bot client instance.
+        payload: MQTT message payload containing error details.
+        bot: PolySpikeBot instance with safe_send_to_channel method.
     """
     logger = get_logger()
     severity = payload.get("severity", "error")
