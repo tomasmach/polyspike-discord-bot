@@ -1,6 +1,6 @@
 [Unit]
 Description=Polyspike Discord Bot
-Documentation=https://github.com/your-org/polyspike-discord-bot
+Documentation=https://github.com/tomasmach/polyspike-discord-bot
 After=network-online.target mosquitto.service
 Wants=network-online.target
 Requires=mosquitto.service

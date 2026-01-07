@@ -51,7 +51,7 @@ Complete this checklist before deploying the PolySpike Discord Bot to production
 ### Systemd Service
 - [ ] Service file copied to systemd
   ```bash
-  sudo cp scripts/polyspike-discord-bot.service /etc/systemd/system/
+  sudo cp polyspike-discord-bot.service /etc/systemd/system/
   ```
 - [ ] Systemd daemon reloaded
   ```bash
